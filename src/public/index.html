@@ -378,6 +378,17 @@
           </div>
         </div>
 
+        <!-- Aviso de Alteração Pendente de Guilda -->
+        <div id="rosterPendingNotice" class="hidden bg-amber-950/40 border border-amber-600/40 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-200">
+          <div class="flex items-center gap-2.5">
+            <span class="text-base">⚠️</span>
+            <span>Você selecionou a guilda <strong id="rosterPendingGuildName" class="text-amber-300"></strong>. Clique em <strong>Salvar Configurações</strong> para carregar o elenco correspondente.</span>
+          </div>
+          <button type="button" onclick="saveConfig()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-3.5 py-1.5 rounded-lg text-xs transition shrink-0 shadow">
+            Salvar Agora
+          </button>
+        </div>
+
         <!-- Filtros e Busca -->
         <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 pt-2">
           <!-- Campo de Busca -->
@@ -457,6 +468,28 @@
     let availableClasses = [];
     let availableProfessions = [];
     let detectedGuildsList = [];
+    let savedTargetGuildName = null;
+    let savedTargetGuildId = null;
+    let savedGameFlavor = 'forever';
+
+    function checkPendingGuildChange() {
+      const pendingNotice = document.getElementById('rosterPendingNotice');
+      const pendingGuildName = document.getElementById('rosterPendingGuildName');
+      if (!pendingNotice || !pendingGuildName) return;
+
+      const currentSelectedName = (document.getElementById('targetGuildName')?.value || '').trim();
+      const currentSelectedFlavor = document.getElementById('gameFlavor')?.value || 'forever';
+
+      const isChanged = (currentSelectedName && currentSelectedName.toLowerCase() !== (savedTargetGuildName || '').toLowerCase()) ||
+                        (currentSelectedFlavor !== (savedGameFlavor || 'forever'));
+
+      if (isChanged && currentSelectedName) {
+        pendingGuildName.textContent = `<${currentSelectedName}> (${currentSelectedFlavor.toUpperCase()})`;
+        pendingNotice.classList.remove('hidden');
+      } else {
+        pendingNotice.classList.add('hidden');
+      }
+    }
 
     async function init() {
       try {
@@ -490,6 +523,34 @@
       currentGuildId = select.value;
       if (!currentGuildId) return;
 
+      // Reseta estado do Roster imediatamente para não manter resquícios de outro servidor
+      fullRosterList = [];
+      savedTargetGuildName = null;
+      savedTargetGuildId = null;
+      savedGameFlavor = 'forever';
+      const rosterTable = document.getElementById('rosterTableBody');
+      if (rosterTable) {
+        rosterTable.innerHTML = `
+          <tr>
+            <td colspan="5" class="py-14 text-center text-slate-500">
+              <div class="flex flex-col items-center justify-center gap-2">
+                <span class="text-2xl animate-spin">⏳</span>
+                <span>Carregando elenco do servidor...</span>
+              </div>
+            </td>
+          </tr>
+        `;
+      }
+      const searchInput = document.getElementById('rosterSearchInput');
+      if (searchInput) searchInput.value = '';
+      const classSelect = document.getElementById('rosterClassFilter');
+      if (classSelect) classSelect.value = '';
+      const rosterBadge = document.getElementById('rosterGuildBadge');
+      if (rosterBadge) rosterBadge.classList.add('hidden');
+      const pendingNotice = document.getElementById('rosterPendingNotice');
+      if (pendingNotice) pendingNotice.classList.add('hidden');
+      setRosterFilterTabs('all');
+
       document.getElementById('loading').classList.remove('hidden');
       document.getElementById('content').classList.add('hidden');
 
@@ -504,6 +565,10 @@
         availableClasses = data.availableClasses || [];
         availableProfessions = data.availableProfessions || [];
         detectedGuildsList = data.detectedGuilds || [];
+
+        savedTargetGuildName = data.config?.targetGuildName || null;
+        savedTargetGuildId = data.config?.targetGuildId || null;
+        savedGameFlavor = data.config?.gameFlavor || 'forever';
 
         // Preenche dropdowns de cargos gerais
         populateRoleSelect('unverifiedRoleId', data.config?.unverifiedRoleId, '-- Nenhum (Desativado) --');
@@ -571,6 +636,8 @@
       } else {
         searchInput.placeholder = 'Ex: Warsong (Retail)';
       }
+
+      checkPendingGuildChange();
     }
 
     function populateDetectedGuilds(currentConfig, targetFlavor = null) {
@@ -616,6 +683,7 @@
       const guild = JSON.parse(select.value);
       setGuildBadge(guild.id, guild.name, guild.faction);
       showToast(`Guilda "${guild.name}" selecionada! Lembre-se de salvar.`);
+      checkPendingGuildChange();
     }
 
     async function searchBlizzardGuild() {
@@ -634,7 +702,8 @@
 
         if (data.success && data.guild) {
           setGuildBadge(data.guild.id, data.guild.name, data.guild.faction, data.guild.memberCount);
-          showToast(`✅ Guilda "${data.guild.name}" (ID: ${data.guild.id}) encontrada na Blizzard!`);
+          showToast(`✅ Guilda "${data.guild.name}" (ID: ${data.guild.id}) encontrada na Blizzard! Lembre-se de salvar.`);
+          checkPendingGuildChange();
         } else {
           showToast(`❌ Guilda "${name}" não encontrada na Blizzard.`, true);
         }
@@ -662,17 +731,13 @@
 
         const countText = memberCount ? ` • ${memberCount} membros` : '';
         metaEl.textContent = `Blizzard Guild ID: #${id} • Facção: ${faction || 'Horde'}${countText}`;
-
-        const rosterBadge = document.getElementById('rosterGuildBadge');
-        if (rosterBadge) {
-          rosterBadge.textContent = `<${name}>`;
-          rosterBadge.classList.remove('hidden');
-        }
       } else {
         nameEl.textContent = 'Nenhuma guilda selecionada';
         factionEl.classList.add('hidden');
         metaEl.textContent = 'Selecione ou valide uma guilda para vincular o Blizzard Guild ID.';
       }
+
+      checkPendingGuildChange();
     }
 
     function populateRoleSelect(elementId, selectedValue, defaultLabel) {
@@ -1047,6 +1112,13 @@
           // Atualiza contadores dos acordeões em tempo real
           updateAccordionBadges(classRoleMappings, professionRoleMappings);
 
+          // Atualiza dados salvos e recarrega o roster imediatamente (sem precisar de F5)
+          savedTargetGuildName = targetGuildName;
+          savedTargetGuildId = targetGuildId ? parseInt(targetGuildId, 10) : null;
+          savedGameFlavor = gameFlavor;
+          checkPendingGuildChange();
+          await loadRoster(currentGuildId);
+
           setTimeout(restoreSaveBtn, 1200);
         } else {
           showToast('❌ Falha ao salvar configurações.', true);
@@ -1105,6 +1177,10 @@
         const data = await res.json();
 
         fullRosterList = data.characters || [];
+        savedTargetGuildName = data.guildName || null;
+        savedTargetGuildId = data.guildId || null;
+        savedGameFlavor = data.gameFlavor || 'forever';
+        checkPendingGuildChange();
 
         // Atualiza contadores
         document.getElementById('statTotalMembers').textContent = data.stats?.total || 0;
@@ -1128,8 +1204,11 @@
         console.error('Erro ao carregar roster:', err);
         tbody.innerHTML = `
           <tr>
-            <td colspan="5" class="py-8 text-center text-red-400">
-              Erro ao carregar elenco da guilda. Verifique se o servidor está ativo.
+            <td colspan="5" class="py-12 text-center text-red-400">
+              <div class="flex flex-col items-center justify-center gap-2">
+                <span class="text-2xl">⚠️</span>
+                <span>Erro ao carregar elenco da guilda. Verifique se o servidor está ativo.</span>
+              </div>
             </td>
           </tr>
         `;
@@ -1151,28 +1230,88 @@
       });
     }
 
-    function setRosterFilter(filter) {
-      currentRosterFilter = filter;
+    function resetRosterFilters() {
+      const search = document.getElementById('rosterSearchInput');
+      if (search) search.value = '';
+      const cls = document.getElementById('rosterClassFilter');
+      if (cls) cls.value = '';
+      setRosterFilter('all');
+    }
 
+    function setRosterFilterTabs(filter) {
+      currentRosterFilter = filter;
       const tabs = ['all', 'linked', 'unlinked'];
       tabs.forEach(t => {
         const btn = document.getElementById(`rosterTab-${t}`);
+        if (!btn) return;
         if (t === filter) {
           btn.className = 'text-xs font-semibold px-3 py-1.5 rounded-lg bg-purple-600 text-white transition';
         } else {
           btn.className = 'text-xs font-semibold px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition';
         }
       });
+    }
 
+    function setRosterFilter(filter) {
+      setRosterFilterTabs(filter);
       filterRosterTable();
     }
 
     function filterRosterTable() {
-      const search = (document.getElementById('rosterSearchInput').value || '').toLowerCase().trim();
-      const classFilter = document.getElementById('rosterClassFilter').value;
+      const search = (document.getElementById('rosterSearchInput')?.value || '').toLowerCase().trim();
+      const classFilter = document.getElementById('rosterClassFilter')?.value || '';
       const tbody = document.getElementById('rosterTableBody');
       const showingCountEl = document.getElementById('rosterShowingCount');
+      if (!tbody || !showingCountEl) return;
 
+      // Empty State 1: Nenhuma guilda oficial configurada no banco de dados para este servidor Discord
+      if (!savedTargetGuildName) {
+        showingCountEl.textContent = 'Nenhuma guilda oficial configurada';
+        document.getElementById('statTotalMembers').textContent = '0';
+        document.getElementById('statLinkedMembers').textContent = '0';
+        document.getElementById('statUnlinkedMembers').textContent = '0';
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5" class="py-14 text-center text-slate-400">
+              <div class="flex flex-col items-center justify-center gap-3 max-w-md mx-auto">
+                <span class="text-4xl">🏰</span>
+                <h3 class="text-base font-bold text-white">Nenhuma Guilda Oficial Configurada</h3>
+                <p class="text-xs text-slate-400 leading-relaxed">
+                  Para visualizar o elenco e atribuir cargos automáticos, selecione ou busque uma guilda oficial na seção acima e clique em <strong class="text-blue-400">Salvar Configurações</strong>.
+                </p>
+              </div>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      // Empty State 2: Guilda configurada, mas 0 personagens sincronizados no banco de dados
+      if (fullRosterList.length === 0) {
+        showingCountEl.textContent = `0 membros em <${savedTargetGuildName}>`;
+        document.getElementById('statTotalMembers').textContent = '0';
+        document.getElementById('statLinkedMembers').textContent = '0';
+        document.getElementById('statUnlinkedMembers').textContent = '0';
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5" class="py-14 text-center text-slate-400">
+              <div class="flex flex-col items-center justify-center gap-3 max-w-md mx-auto">
+                <span class="text-4xl">👥</span>
+                <h3 class="text-base font-bold text-white">Nenhum membro sincronizado para &lt;${savedTargetGuildName}&gt;</h3>
+                <p class="text-xs text-slate-400 leading-relaxed">
+                  Esta guilda ainda não possui personagens cadastrados no banco de dados. Clique no botão abaixo para baixar todos os membros diretamente da API da Blizzard.
+                </p>
+                <button type="button" onclick="triggerHydrateRoster()" class="mt-2 inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-lg shadow-purple-900/30 transition transform hover:-translate-y-0.5">
+                  <span>🔄</span> Sincronizar Roster Blizzard Agora
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      // Filtragem normal
       let filtered = fullRosterList.filter(char => {
         // Filtro de aba (status de vínculo)
         if (currentRosterFilter === 'linked' && !char.discordId) return false;
@@ -1207,14 +1346,18 @@
 
       showingCountEl.textContent = `Exibindo ${filtered.length} de ${fullRosterList.length} membros`;
 
+      // Empty State 3: Filtros aplicados mas nenhum resultado encontrado
       if (filtered.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="5" class="py-10 text-center text-slate-400">
-              <div class="flex flex-col items-center gap-1.5">
-                <span class="text-2xl">🔍</span>
-                <span class="font-medium text-slate-300">Nenhum membro encontrado com os filtros selecionados</span>
-                <span class="text-xs text-slate-500">Tente buscar por outro termo ou limpar os filtros</span>
+            <td colspan="5" class="py-12 text-center text-slate-400">
+              <div class="flex flex-col items-center justify-center gap-2">
+                <span class="text-3xl">🔍</span>
+                <span class="font-medium text-slate-300">Nenhum membro encontrado com os filtros atuais</span>
+                <span class="text-xs text-slate-500">Tente buscar por outro termo ou limpar os filtros de busca e classe</span>
+                <button type="button" onclick="resetRosterFilters()" class="mt-2 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3.5 py-1.5 rounded-lg border border-slate-700 transition">
+                  Limpar Filtros
+                </button>
               </div>
             </td>
           </tr>

@@ -352,6 +352,7 @@ router.get('/guilds/:guildId/roster', async (req, res) => {
 
         const characters = await prisma.character.findMany({
             where: {
+                gameFlavor: config.gameFlavor,
                 OR: [
                     { guildName: config.targetGuildName },
                     ...(config.targetGuildId ? [{ guildId: config.targetGuildId }] : [])
@@ -416,6 +417,7 @@ router.get('/guilds/:guildId/roster', async (req, res) => {
 
         res.json({
             guildName: config.targetGuildName,
+            guildId: config.targetGuildId,
             gameFlavor: config.gameFlavor,
             stats: { total, linked, unlinked },
             characters: enriched
