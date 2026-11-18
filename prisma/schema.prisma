@@ -1,0 +1,133 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model GuildConfig {
+  guildId                String                  @id // Discord Server ID
+  gameFlavor             String                  @default("forever") // forever, classic, retail
+  region                 String                  @default("us")
+  targetGuildId          Int?                    // Blizzard Guild ID numérico oficial
+  targetGuildName        String?                 // Nome da guilda oficial
+  targetGuildFaction     String?                 // Horde ou Alliance
+  targetGuildRoleId      String?                 // Cargo no Discord para membros desta guilda
+  guildLeaderRoleId      String?                 // Cargo para GM da guilda (Rank 0)
+  guildOfficerRoleId     String?                 // Cargo para Oficiais da guilda (Rank 1)
+  unverifiedRoleId           String?                 // Cargo de quarentena
+  verifiedRoleId             String?                 // Cargo de membro verificado
+  officerRoleId              String?                 // Cargo de oficiais para comando /whois
+  panelinhaCategoryId        String?                 // ID da Categoria onde as panelinhas serão criadas
+  panelinhaGeneratorChannelId String?                // ID do Canal de Voz que cria as panelinhas ao entrar
+  newsChannelId              String?                 // Canal de texto para Guild News (Level-up, Conquistas)
+  newsIntervalMinutes        Int                     @default(15) // Intervalo em minutos da varredura
+  lastNewsScan               DateTime?               // Data/hora da última verificação do Guild News
+  levelCap                   Int?                    // Nível máximo da expansão configurada (ex: 60, 70, 80, 85, 90)
+  classRoleMappings          ClassRoleMapping[]
+  professionRoleMappings     ProfessionRoleMapping[]
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+}
+
+model ClassRoleMapping {
+  id         Int         @id @default(autoincrement())
+  guildId    String
+  className  String      // Warrior, Paladin, Hunter, Rogue, Priest, Shaman, Mage, Warlock, Druid
+  mainRoleId String?     // Cargo com cor (ex: @Guerreiro)
+  altRoleId  String?     // Cargo de acesso neutro (ex: @[Acesso] Guerreiro)
+  guild      GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+
+  @@unique([guildId, className])
+}
+
+model ProfessionRoleMapping {
+  id             Int         @id @default(autoincrement())
+  guildId        String
+  professionName String      // Alchemy, Blacksmithing, Enchanting, Engineering, Herbalism, Inscription, Jewelcrafting, Leatherworking, Mining, Skinning, Tailoring, Cooking, First Aid, Fishing
+  roleId         String?     // Cargo no Discord (ex: @Minerador, @Ferreiro, etc.)
+  guild          GuildConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+
+  @@unique([guildId, professionName])
+}
+
+model User {
+  discordId       String      @id
+  bnetId          Int?
+  battleTag       String?
+  accessToken     String?
+  mainCharName    String?     // Primeiro Nome
+  mainCharSurname String?     // Sobrenome (WoW Forever)
+  mainCharRealm   String?     // Realm ou Ruleset
+  characters      Character[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model AuthState {
+  state     String   @id
+  discordId String
+  guildId   String?
+  createdAt DateTime @default(now())
+}
+
+model Character {
+  id             Int          @id @default(autoincrement())
+  blizzardCharId Int?         @unique // ID numérico do personagem na Blizzard API
+  discordId      String?
+  name           String
+  surname        String?      // Sobrenome no WoW Forever
+  realm          String       // Realm ou Ruleset (PvP, Normal, etc.)
+  gameFlavor     String       @default("forever") // forever, classic, retail
+  level          Int?
+  playableClass  String?
+  playableRace   String?
+  guildId        Int?         // ID numérico da guilda na Blizzard
+  guildName      String?      // Nome da guilda
+  guildRank      Int?         // 0 = GM, 1 = Oficial, 2 = Membro...
+  isMain         Boolean      @default(false)
+  user           User?        @relation(fields: [discordId], references: [discordId], onDelete: SetNull)
+  professions    Profession[]
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([name, realm, surname])
+}
+
+model Profession {
+  id          Int       @id @default(autoincrement())
+  characterId Int
+  name        String    // ex: "Mining", "Cooking", "First Aid"
+  skillPoints Int?      // Pontos atuais (ex: 70)
+  maxSkill    Int?      // Máximo (ex: 150)
+  isPrimary   Boolean   @default(true)
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, name])
+}
+
+// Histórico de snapshot dos membros da guilda para detecção de Level-Up
+model GuildMemberSnapshot {
+  id         Int         @id @default(autoincrement())
+  guildId    String      // Discord Guild ID
+  charId     Int         // Blizzard Character ID numérico
+  name       String
+  surname    String?
+  level      Int
+  updatedAt  DateTime    @updatedAt
+
+  @@unique([guildId, charId])
+}
+
+// Histórico de conquistas já notificadas para a guilda
+model GuildAchievementLog {
+  id            Int         @id @default(autoincrement())
+  guildId       String      // Discord Guild ID
+  achievementId Int         // Blizzard Achievement ID
+  name          String
+  completedAt   DateTime?
+  createdAt     DateTime    @default(now())
+
+  @@unique([guildId, achievementId])
+}

@@ -1,0 +1,1321 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WoW GuildHub - Painel Administrativo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #0b0f19; color: #f1f5f9; }
+    .glass { background: rgba(30, 41, 59, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+    select, input { background: #0f172a; border: 1px solid #334155; color: #f8fafc; }
+    select:focus, input:focus { border-color: #3b82f6; outline: none; }
+  </style>
+</head>
+<body class="min-h-screen p-6 md:p-12">
+  <div class="max-w-6xl mx-auto space-y-8">
+    
+    <!-- Top Bar -->
+    <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-6">
+      <div>
+        <div class="flex items-center gap-3">
+          <span class="text-3xl">🛡️</span>
+          <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
+            GuildHub Manager
+          </h1>
+          <span class="text-xs bg-blue-500/20 text-blue-400 font-semibold px-2.5 py-1 rounded-full border border-blue-500/30">
+            WoW Forever & Multi-Flavor
+          </span>
+        </div>
+        <p class="text-slate-400 text-sm mt-1">Configuração de Guilda Oficial, Cargos, Classes e Profissões.</p>
+      </div>
+
+      <!-- Server Selector -->
+      <div class="flex items-center gap-3">
+        <label for="guildSelect" class="text-sm font-semibold text-slate-300">Servidor:</label>
+        <select id="guildSelect" class="rounded-lg px-4 py-2.5 text-sm font-medium pr-10 shadow-lg min-w-[240px]" onchange="loadGuildConfig()">
+          <option value="" disabled selected>Carregando servidores...</option>
+        </select>
+      </div>
+    </header>
+
+    <!-- Loading State -->
+    <div id="loading" class="text-center py-20 text-slate-400 font-medium hidden">
+      <div class="inline-block animate-spin text-3xl mb-3">⚡</div>
+      <p>Carregando dados e cargos do Discord...</p>
+    </div>
+
+    <!-- Main Content Area -->
+    <div id="content" class="space-y-8 hidden">
+      
+      <!-- Card 1: Configurações da Guilda Oficial e Servidor -->
+      <section class="glass rounded-2xl p-6 md:p-8 shadow-xl space-y-6">
+        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+          <span>🏰</span> Configuração da Guilda Oficial e Servidor
+        </h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <!-- Game Flavor -->
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Expansão / Jogo (Flavor)</label>
+            <select id="gameFlavor" class="w-full rounded-lg px-3.5 py-2.5 text-sm" onchange="onFlavorChange()">
+              <option value="forever">WoW Forever (PvP/Ruleset)</option>
+              <option value="classic">WoW Classic / MoP / Cata</option>
+              <option value="retail">WoW Retail</option>
+            </select>
+            <p class="text-xs text-slate-500 mt-1.5">Define as regras de validação da Blizzard.</p>
+          </div>
+
+          <!-- Seleção da Guilda Oficial (Dropdown das Detectadas) -->
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Guilda Oficial Detectada</label>
+            <select id="detectedGuildSelect" class="w-full rounded-lg px-3.5 py-2.5 text-sm" onchange="onSelectDetectedGuild()">
+              <option value="">-- Selecione uma guilda detectada --</option>
+            </select>
+            <p class="text-xs text-slate-500 mt-1.5">Guildas encontradas nas contas dos membros.</p>
+          </div>
+
+          <!-- Busca na Blizzard API -->
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Ou Buscar na Blizzard API</label>
+            <div class="flex gap-2">
+              <input type="text" id="guildSearchInput" placeholder="Ex: Projeto" class="w-full rounded-lg px-3.5 py-2 text-sm" />
+              <button type="button" onclick="searchBlizzardGuild()" class="bg-blue-600 hover:bg-blue-500 text-xs font-bold px-4 py-2 rounded-lg transition whitespace-nowrap">
+                Validar
+              </button>
+            </div>
+            <p class="text-xs text-slate-500 mt-1.5">Valida o ID exato diretamente na Blizzard.</p>
+          </div>
+        </div>
+
+        <!-- Badge da Guilda Selecionada -->
+        <div id="selectedGuildBox" class="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">🛡️</span>
+            <div>
+              <div class="flex items-center gap-2">
+                <span id="displayGuildName" class="font-bold text-white text-base">Nenhuma guilda selecionada</span>
+                <span id="displayGuildFaction" class="text-xs px-2 py-0.5 rounded font-semibold hidden"></span>
+              </div>
+              <p id="displayGuildMeta" class="text-xs text-slate-400 mt-0.5">Selecione ou valide uma guilda para vincular o Blizzard Guild ID.</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="triggerHydrateRoster()" id="hydrateRosterBtn" class="bg-slate-800 hover:bg-slate-700 text-xs font-semibold px-3.5 py-2 rounded-lg border border-slate-700 text-slate-200 transition flex items-center gap-1.5 whitespace-nowrap">
+              <span>🔄</span> Sincronizar Roster
+            </button>
+          </div>
+          <input type="hidden" id="targetGuildId" value="" />
+          <input type="hidden" id="targetGuildName" value="" />
+          <input type="hidden" id="targetGuildFaction" value="" />
+        </div>
+
+        <!-- Cargos de Guilda e Moderação -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-4 border-t border-slate-800/80">
+          <!-- Cargo Membro da Guilda -->
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Cargo Membro da Guilda</label>
+            <select id="targetGuildRoleId" class="w-full rounded-lg px-3.5 py-2.5 text-sm">
+              <option value="">-- Nenhum --</option>
+            </select>
+            <p class="text-xs text-slate-500 mt-1.5">Concedido se o personagem estiver na guilda oficial.</p>
+          </div>
+
+          <!-- Cargo Oficial da Guilda (Rank 1) -->
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Cargo Oficial da Guilda (Rank 1)</label>
+            <select id="guildOfficerRoleId" class="w-full rounded-lg px-3.5 py-2.5 text-sm">
+              <option value="">-- Nenhum --</option>
+            </select>
+            <p class="text-xs text-slate-500 mt-1.5">Concedido a oficiais do roster oficial.</p>
+          </div>
+
+          <!-- Cargo GM da Guilda (Rank 0) -->
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Cargo GM / Líder da Guilda (Rank 0)</label>
+            <select id="guildLeaderRoleId" class="w-full rounded-lg px-3.5 py-2.5 text-sm">
+              <option value="">-- Nenhum --</option>
+            </select>
+            <p class="text-xs text-slate-500 mt-1.5">Concedido ao Guild Master do roster.</p>
+          </div>
+
+          <!-- Cargo Quarentena -->
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Cargo Quarentena (@Não Verificado)</label>
+            <select id="unverifiedRoleId" class="w-full rounded-lg px-3.5 py-2.5 text-sm">
+              <option value="">-- Nenhum (Desativado) --</option>
+            </select>
+          </div>
+
+          <!-- Cargo Verificado -->
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Cargo Membro Verificado</label>
+            <select id="verifiedRoleId" class="w-full rounded-lg px-3.5 py-2.5 text-sm">
+              <option value="">-- Nenhum --</option>
+            </select>
+          </div>
+
+          <!-- Cargo Permissão /whois -->
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Permissão para comando /whois</label>
+            <select id="officerRoleId" class="w-full rounded-lg px-3.5 py-2.5 text-sm">
+              <option value="">-- Somente Administradores --</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <!-- Card: Guild News (Notificações de Level-Up & Conquistas) -->
+      <section class="glass rounded-2xl p-6 md:p-8 shadow-xl space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-base md:text-lg font-bold text-white flex items-center gap-2">
+              <span>📰</span> Guild News (Avanço de Nível & Conquistas)
+            </h2>
+            <p class="text-xs md:text-sm text-slate-400 mt-1">
+              Varre o elenco da guilda periodicamente e notifica no Discord quando alguém upa de nível ou a guilda conclui conquistas. Se desativado, o agendador não roda e economiza requisições.
+            </p>
+          </div>
+          <button type="button" onclick="triggerManualScan()" id="manualScanBtn" class="shrink-0 bg-slate-800 hover:bg-slate-700 text-xs font-semibold px-3.5 py-2 rounded-lg border border-slate-700 text-slate-200 transition flex items-center gap-1.5 self-start sm:self-auto">
+            <span>⚡</span> Varredura Manual
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-1">
+          <!-- Canal de Notificações -->
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Canal de Texto do Guild News</label>
+            <select id="newsChannelId" class="w-full rounded-lg px-3.5 py-2.5 text-sm">
+              <option value="">-- Desativado --</option>
+            </select>
+            <p class="text-xs text-slate-500 mt-1.5">Escolha o canal de texto ou desative para suspender a rotina.</p>
+          </div>
+
+          <!-- Intervalo de Varredura -->
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Intervalo de Verificação</label>
+            <select id="newsIntervalMinutes" class="w-full rounded-lg px-3.5 py-2.5 text-sm">
+              <option value="5">A cada 5 minutos</option>
+              <option value="10">A cada 10 minutos</option>
+              <option value="15" selected>A cada 15 minutos (Padrão)</option>
+              <option value="30">A cada 30 minutos</option>
+              <option value="60">A cada 60 minutos (1 hora)</option>
+            </select>
+            <p class="text-xs text-slate-500 mt-1.5">Frequência com que o bot consulta a guilda na Blizzard.</p>
+          </div>
+
+          <!-- Level Cap (Nível Máximo da Expansão) -->
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Level Cap (Nível Máximo)</label>
+            <select id="levelCap" class="w-full rounded-lg px-3.5 py-2.5 text-sm">
+              <option value="">Automático pelo Flavor (60 Forever / 90 Classic / 80 Retail)</option>
+              <option value="60">Nível 60 (WoW Forever / Classic Vanilla)</option>
+              <option value="70">Nível 70 (The Burning Crusade)</option>
+              <option value="80">Nível 80 (WotLK / The War Within)</option>
+              <option value="85">Nível 85 (Cataclysm)</option>
+              <option value="90">Nível 90 (Mists of Pandaria Classic)</option>
+              <option value="100">Nível 100 (Warlords of Draenor)</option>
+              <option value="110">Nível 110 (Legion)</option>
+              <option value="120">Nível 120 (Battle for Azeroth)</option>
+            </select>
+            <p class="text-xs text-slate-500 mt-1.5">Dispara mensagem especial in-game de nível máximo.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Card: Panelinhas (Salas de Voz Dinâmicas) -->
+      <section class="glass rounded-2xl p-6 md:p-8 shadow-xl space-y-4">
+        <div>
+          <h2 class="text-base md:text-lg font-bold text-white flex items-center gap-2">
+            <span>🔊</span> Panelinhas (Salas de Voz Dinâmicas)
+          </h2>
+          <p class="text-xs md:text-sm text-slate-400 mt-1">
+            Ao entrar no canal gerador, o bot cria instantaneamente uma sala temporária com o nome do jogador, concede poderes de moderação sobre a sala e a exclui automaticamente quando todos saem.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
+          <!-- Categoria das Panelinhas -->
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Categoria das Panelinhas</label>
+            <select id="panelinhaCategoryId" class="w-full rounded-lg px-3.5 py-2.5 text-sm" onchange="onPanelinhaCategoryChange()">
+              <option value="">-- Desativado --</option>
+            </select>
+            <p class="text-xs text-slate-500 mt-1.5">Categoria onde as novas salas serão criadas.</p>
+          </div>
+
+          <!-- Canal Gerador -->
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Canal Gerador (Entrar para Criar)</label>
+            <select id="panelinhaGeneratorChannelId" class="w-full rounded-lg px-3.5 py-2.5 text-sm">
+              <option value="">-- Nenhum --</option>
+            </select>
+            <p class="text-xs text-slate-500 mt-1.5">Canal de voz onde o membro clica para criar sua panelinha.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Card 2: Mapeamento Dinâmico de Classes (Main vs Alt) - Accordion -->
+      <section class="glass rounded-2xl shadow-xl overflow-hidden transition-all duration-300">
+        <button type="button" onclick="toggleAccordion('classesAccordion')" class="w-full p-5 md:p-6 flex items-center justify-between text-left hover:bg-slate-800/40 transition select-none group">
+          <div class="pr-4">
+            <h2 class="text-base md:text-lg font-bold text-white flex items-center gap-2">
+              <span>🎭</span> Mapeamento de Classes: Main (Cor) vs Alts (Acesso)
+            </h2>
+            <p class="text-xs md:text-sm text-slate-400 mt-1">
+              Configure os cargos de destaque de cor para o <strong>Main</strong> e liberação de canais para os <strong>Alts</strong>.
+            </p>
+          </div>
+          <div class="flex items-center gap-3 shrink-0">
+            <span id="classConfiguredBadge" class="text-xs bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700/80 font-medium">0 mapeadas</span>
+            <div class="w-8 h-8 rounded-lg bg-slate-800/60 border border-slate-700/60 flex items-center justify-center group-hover:bg-slate-700/60 transition">
+              <svg id="classesChevron" class="w-4 h-4 text-slate-400 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </div>
+          </div>
+        </button>
+
+        <div id="classesAccordion" class="hidden px-5 pb-6 md:px-8 md:pb-8 pt-2 border-t border-slate-800/80 space-y-4">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b border-slate-800 text-xs font-bold uppercase tracking-wider text-slate-400">
+                  <th class="py-3 px-4">Classe</th>
+                  <th class="py-3 px-4">Cargo Main (Cor & Identidade)</th>
+                  <th class="py-3 px-4">Cargo Alt (Acesso a Canais)</th>
+                </tr>
+              </thead>
+              <tbody id="classMappingTable" class="divide-y divide-slate-800/60 text-sm">
+                <!-- Renderizado via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Card 3: Mapeamento Dinâmico de Profissões - Accordion -->
+      <section class="glass rounded-2xl shadow-xl overflow-hidden transition-all duration-300">
+        <button type="button" onclick="toggleAccordion('professionsAccordion')" class="w-full p-5 md:p-6 flex items-center justify-between text-left hover:bg-slate-800/40 transition select-none group">
+          <div class="pr-4">
+            <h2 class="text-base md:text-lg font-bold text-white flex items-center gap-2">
+              <span>⛏️</span> Mapeamento de Cargos de Profissões
+            </h2>
+            <p class="text-xs md:text-sm text-slate-400 mt-1">
+              Associe as profissões do WoW a cargos do seu Discord (ex: <code>@Minerador</code>, <code>@Ferreiro</code>).
+            </p>
+          </div>
+          <div class="flex items-center gap-3 shrink-0">
+            <span id="profConfiguredBadge" class="text-xs bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700/80 font-medium">0 mapeadas</span>
+            <div class="w-8 h-8 rounded-lg bg-slate-800/60 border border-slate-700/60 flex items-center justify-center group-hover:bg-slate-700/60 transition">
+              <svg id="professionsChevron" class="w-4 h-4 text-slate-400 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </div>
+          </div>
+        </button>
+
+        <div id="professionsAccordion" class="hidden px-5 pb-6 md:px-8 md:pb-8 pt-2 border-t border-slate-800/80 space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="professionMappingGrid">
+            <!-- Renderizado via JavaScript -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Card: Elenco da Guilda (Roster & Membros Sincronizados) -->
+      <section class="glass rounded-2xl p-6 md:p-8 shadow-xl space-y-6">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800/80">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-xl">👥</span>
+              <h2 class="text-base md:text-lg font-bold text-white">Elenco da Guilda (Roster Sincronizado)</h2>
+              <span id="rosterGuildBadge" class="text-xs bg-purple-950/70 text-purple-300 border border-purple-800/70 font-semibold px-2.5 py-0.5 rounded-full hidden"></span>
+            </div>
+            <p class="text-xs md:text-sm text-slate-400 mt-1">
+              Visualize em tempo real todos os membros cadastrados na guilda, classes, níveis e status de vínculo com o Discord.
+            </p>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <button type="button" onclick="triggerHydrateRoster()" id="rosterRefreshBtn" class="bg-purple-600/80 hover:bg-purple-500 text-xs font-bold px-4 py-2.5 rounded-xl border border-purple-400/30 text-white transition flex items-center gap-2 shadow-lg shadow-purple-900/30">
+              <span id="rosterRefreshIcon">🔄</span>
+              <span id="rosterRefreshText">Sincronizar Roster Blizzard</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Estatísticas Rápidas -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="bg-slate-900/70 border border-slate-800/90 rounded-xl p-4 flex items-center gap-3.5">
+            <div class="w-10 h-10 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 text-lg font-bold">
+              ⚔️
+            </div>
+            <div>
+              <p class="text-xs text-slate-400 font-medium">Membros no Roster</p>
+              <h3 id="statTotalMembers" class="text-xl font-extrabold text-white">0</h3>
+            </div>
+          </div>
+
+          <div class="bg-slate-900/70 border border-slate-800/90 rounded-xl p-4 flex items-center gap-3.5">
+            <div class="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 text-lg font-bold">
+              ✅
+            </div>
+            <div>
+              <p class="text-xs text-slate-400 font-medium">Vinculados ao Discord</p>
+              <h3 id="statLinkedMembers" class="text-xl font-extrabold text-emerald-400">0</h3>
+            </div>
+          </div>
+
+          <div class="bg-slate-900/70 border border-slate-800/90 rounded-xl p-4 flex items-center gap-3.5">
+            <div class="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 text-lg font-bold">
+              ⏳
+            </div>
+            <div>
+              <p class="text-xs text-slate-400 font-medium">Aguardando Vínculo</p>
+              <h3 id="statUnlinkedMembers" class="text-xl font-extrabold text-amber-300">0</h3>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filtros e Busca -->
+        <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 pt-2">
+          <!-- Campo de Busca -->
+          <div class="relative flex-1">
+            <input type="text" id="rosterSearchInput" oninput="filterRosterTable()" placeholder="Buscar por personagem, sobrenome, classe ou BattleTag..." class="w-full bg-slate-900/80 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs md:text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-purple-500 transition" />
+            <span class="absolute left-3 top-3 text-slate-500 text-xs">🔍</span>
+          </div>
+
+          <!-- Filtros de Vínculo (Tabs) -->
+          <div class="flex items-center gap-1.5 bg-slate-900/80 p-1 rounded-xl border border-slate-800 shrink-0">
+            <button type="button" onclick="setRosterFilter('all')" id="rosterTab-all" class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-purple-600 text-white transition">Todos</button>
+            <button type="button" onclick="setRosterFilter('linked')" id="rosterTab-linked" class="text-xs font-semibold px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition">Vinculados</button>
+            <button type="button" onclick="setRosterFilter('unlinked')" id="rosterTab-unlinked" class="text-xs font-semibold px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition">Não Vinculados</button>
+          </div>
+
+          <!-- Filtro por Classe -->
+          <div class="shrink-0">
+            <select id="rosterClassFilter" onchange="filterRosterTable()" class="bg-slate-900/80 border border-slate-800 rounded-xl px-3 py-2 text-xs md:text-sm text-slate-200">
+              <option value="">Todas as Classes</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Tabela do Roster -->
+        <div class="overflow-x-auto rounded-xl border border-slate-800/80 bg-slate-950/40 max-h-[520px] overflow-y-auto">
+          <table class="w-full text-left text-xs md:text-sm border-collapse">
+            <thead class="sticky top-0 bg-slate-900 border-b border-slate-800 z-10">
+              <tr class="text-slate-400 text-xs uppercase tracking-wider font-semibold">
+                <th class="py-3 px-4">Personagem</th>
+                <th class="py-3 px-3">Nível</th>
+                <th class="py-3 px-3">Rank Guilda</th>
+                <th class="py-3 px-4">Profissões</th>
+                <th class="py-3 px-4">Dono / Vínculo Discord</th>
+              </tr>
+            </thead>
+            <tbody id="rosterTableBody" class="divide-y divide-slate-800/60 text-slate-300">
+              <tr>
+                <td colspan="5" class="py-8 text-center text-slate-500">
+                  <div class="flex flex-col items-center gap-2">
+                    <span class="text-2xl animate-spin">⏳</span>
+                    <span>Carregando elenco da guilda...</span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Rodapé do Roster -->
+        <div class="flex items-center justify-between text-xs text-slate-500 pt-1">
+          <span id="rosterShowingCount">Exibindo 0 membros</span>
+          <span class="text-slate-500">Ordenado por nível decrescente</span>
+        </div>
+      </section>
+
+      <!-- Bottom Save Action -->
+      <div class="flex justify-end pt-4">
+        <button id="saveBtn" onclick="saveConfig()" class="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3.5 px-8 rounded-xl shadow-lg shadow-blue-600/30 transition transform hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2.5">
+          <span id="saveBtnIcon" class="text-lg">💾</span>
+          <span id="saveBtnText">Salvar Configurações</span>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-6 right-6 px-5 py-3 rounded-xl shadow-2xl font-semibold text-sm transform transition-all duration-300 opacity-0 pointer-events-none translate-y-4"></div>
+
+  </div>
+
+  <script>
+    let currentGuildId = null;
+    let availableRoles = [];
+    let availableCategories = [];
+    let availableVoiceChannels = [];
+    let availableTextChannels = [];
+    let availableClasses = [];
+    let availableProfessions = [];
+    let detectedGuildsList = [];
+
+    async function init() {
+      try {
+        const res = await fetch('/api/guilds');
+        const guilds = await res.json();
+
+        const select = document.getElementById('guildSelect');
+        select.innerHTML = '';
+
+        if (!guilds || guilds.length === 0) {
+          select.innerHTML = '<option value="">Nenhum servidor conectado</option>';
+          return;
+        }
+
+        guilds.forEach(g => {
+          const opt = document.createElement('option');
+          opt.value = g.id;
+          opt.textContent = `${g.name} (${g.memberCount} membros)`;
+          select.appendChild(opt);
+        });
+
+        currentGuildId = guilds[0].id;
+        loadGuildConfig();
+      } catch (err) {
+        showToast('Erro ao carregar lista de servidores', true);
+      }
+    }
+
+    async function loadGuildConfig() {
+      const select = document.getElementById('guildSelect');
+      currentGuildId = select.value;
+      if (!currentGuildId) return;
+
+      document.getElementById('loading').classList.remove('hidden');
+      document.getElementById('content').classList.add('hidden');
+
+      try {
+        const res = await fetch(`/api/guilds/${currentGuildId}/config`);
+        const data = await res.json();
+
+        availableRoles = data.roles || [];
+        availableCategories = data.categories || [];
+        availableVoiceChannels = data.voiceChannels || [];
+        availableTextChannels = data.textChannels || [];
+        availableClasses = data.availableClasses || [];
+        availableProfessions = data.availableProfessions || [];
+        detectedGuildsList = data.detectedGuilds || [];
+
+        // Preenche dropdowns de cargos gerais
+        populateRoleSelect('unverifiedRoleId', data.config?.unverifiedRoleId, '-- Nenhum (Desativado) --');
+        populateRoleSelect('verifiedRoleId', data.config?.verifiedRoleId, '-- Nenhum --');
+        populateRoleSelect('officerRoleId', data.config?.officerRoleId, '-- Somente Administradores --');
+        populateRoleSelect('targetGuildRoleId', data.config?.targetGuildRoleId, '-- Nenhum --');
+        populateRoleSelect('guildOfficerRoleId', data.config?.guildOfficerRoleId, '-- Nenhum --');
+        populateRoleSelect('guildLeaderRoleId', data.config?.guildLeaderRoleId, '-- Nenhum --');
+
+        // Preenche campos do Guild News
+        populateTextChannelSelect(data.config?.newsChannelId);
+        document.getElementById('newsIntervalMinutes').value = String(data.config?.newsIntervalMinutes || 15);
+        document.getElementById('levelCap').value = data.config?.levelCap ? String(data.config.levelCap) : '';
+
+        // Preenche campos das Panelinhas (Salas Dinâmicas)
+        populateCategorySelect(data.config?.panelinhaCategoryId);
+        populateVoiceChannelSelect(data.config?.panelinhaCategoryId, data.config?.panelinhaGeneratorChannelId);
+
+        // Preenche campos gerais
+        document.getElementById('gameFlavor').value = data.config?.gameFlavor || 'forever';
+
+        // Preenche dropdown de guildas detectadas
+        populateDetectedGuilds(data.config);
+
+        // Preenche badge da guilda oficial selecionada
+        setGuildBadge(
+          data.config?.targetGuildId,
+          data.config?.targetGuildName,
+          data.config?.targetGuildFaction
+        );
+
+        // Monta tabelas
+        renderClassTable(data.config?.classRoleMappings || []);
+        renderProfessionGrid(data.config?.professionRoleMappings || []);
+
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('content').classList.remove('hidden');
+
+        // Carrega o elenco da guilda em paralelo
+        loadRoster(currentGuildId);
+      } catch (err) {
+        showToast('Erro ao carregar configurações do servidor', true);
+      }
+    }
+
+    const CLASSIC_REALMS = [
+      'nazgrim', 'nightslayer', 'living flame', 'thalnos', 'herod', 'incendius', 'warsong',
+      'shadowmoon', 'gurubashi', 'arthas', 'whitemane', 'mankrik', 'grobbulus',
+      'faerlina', 'benediction', 'pagle', 'atiesh', 'crusader strike', 'lone wolf'
+    ];
+
+    function isClassicRealm(realm) {
+      return CLASSIC_REALMS.includes((realm || '').toLowerCase());
+    }
+
+    function onFlavorChange() {
+      const flavor = document.getElementById('gameFlavor').value;
+      populateDetectedGuilds(null, flavor);
+
+      const searchInput = document.getElementById('guildSearchInput');
+      if (flavor === 'forever') {
+        searchInput.placeholder = 'Ex: Projeto';
+      } else if (flavor === 'classic') {
+        searchInput.placeholder = 'Ex: Válhalla (MoP/Classic)';
+      } else {
+        searchInput.placeholder = 'Ex: Warsong (Retail)';
+      }
+    }
+
+    function populateDetectedGuilds(currentConfig, targetFlavor = null) {
+      const select = document.getElementById('detectedGuildSelect');
+      const flavor = targetFlavor || document.getElementById('gameFlavor').value || 'forever';
+      select.innerHTML = '<option value="">-- Selecione uma guilda detectada --</option>';
+
+      const filtered = detectedGuildsList.filter(g => {
+        if (flavor === 'forever') {
+          return g.gameFlavor === 'forever' || Boolean(g.surname) || (g.realm && ['pvp', 'normal', 'roleplay', 'roleplay pvp'].includes(g.realm.toLowerCase()));
+        } else if (flavor === 'classic') {
+          return !g.surname && (g.gameFlavor === 'classic' || isClassicRealm(g.realm));
+        } else if (flavor === 'retail') {
+          return !g.surname && (g.gameFlavor === 'retail' || (!isClassicRealm(g.realm) && g.gameFlavor !== 'forever'));
+        }
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        select.innerHTML = `<option value="">-- Nenhuma guilda detectada no ${flavor.toUpperCase()} --</option>`;
+        return;
+      }
+
+      filtered.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = JSON.stringify({
+          id: g.guildId || 238495,
+          name: g.guildName,
+          faction: 'Horde'
+        });
+        opt.textContent = `${g.guildName} ${g.guildId ? '(ID: #' + g.guildId + ')' : ''} [${g.realm || 'WoW'}]`;
+        if (currentConfig?.targetGuildName && g.guildName.toLowerCase() === currentConfig.targetGuildName.toLowerCase()) {
+          opt.selected = true;
+        }
+        select.appendChild(opt);
+      });
+    }
+
+    function onSelectDetectedGuild() {
+      const select = document.getElementById('detectedGuildSelect');
+      if (!select.value) return;
+
+      const guild = JSON.parse(select.value);
+      setGuildBadge(guild.id, guild.name, guild.faction);
+      showToast(`Guilda "${guild.name}" selecionada! Lembre-se de salvar.`);
+    }
+
+    async function searchBlizzardGuild() {
+      const name = document.getElementById('guildSearchInput').value.trim();
+      const flavor = document.getElementById('gameFlavor').value;
+
+      if (!name) {
+        return showToast('Digite o nome da guilda para buscar.', true);
+      }
+
+      showToast('Buscando guilda na Blizzard...');
+
+      try {
+        const res = await fetch(`/api/guild-search?name=${encodeURIComponent(name)}&flavor=${flavor}`);
+        const data = await res.json();
+
+        if (data.success && data.guild) {
+          setGuildBadge(data.guild.id, data.guild.name, data.guild.faction, data.guild.memberCount);
+          showToast(`✅ Guilda "${data.guild.name}" (ID: ${data.guild.id}) encontrada na Blizzard!`);
+        } else {
+          showToast(`❌ Guilda "${name}" não encontrada na Blizzard.`, true);
+        }
+      } catch (err) {
+        showToast('❌ Falha na busca da Blizzard.', true);
+      }
+    }
+
+    function setGuildBadge(id, name, faction, memberCount = null) {
+      document.getElementById('targetGuildId').value = id || '';
+      document.getElementById('targetGuildName').value = name || '';
+      document.getElementById('targetGuildFaction').value = faction || '';
+
+      const nameEl = document.getElementById('displayGuildName');
+      const factionEl = document.getElementById('displayGuildFaction');
+      const metaEl = document.getElementById('displayGuildMeta');
+
+      if (name && id) {
+        nameEl.textContent = name;
+        factionEl.textContent = faction || 'Horde';
+        factionEl.className = `text-xs px-2.5 py-0.5 rounded font-bold ${
+          (faction || '').toLowerCase() === 'alliance' ? 'bg-blue-600 text-white' : 'bg-red-600 text-white'
+        }`;
+        factionEl.classList.remove('hidden');
+
+        const countText = memberCount ? ` • ${memberCount} membros` : '';
+        metaEl.textContent = `Blizzard Guild ID: #${id} • Facção: ${faction || 'Horde'}${countText}`;
+
+        const rosterBadge = document.getElementById('rosterGuildBadge');
+        if (rosterBadge) {
+          rosterBadge.textContent = `<${name}>`;
+          rosterBadge.classList.remove('hidden');
+        }
+      } else {
+        nameEl.textContent = 'Nenhuma guilda selecionada';
+        factionEl.classList.add('hidden');
+        metaEl.textContent = 'Selecione ou valide uma guilda para vincular o Blizzard Guild ID.';
+      }
+    }
+
+    function populateRoleSelect(elementId, selectedValue, defaultLabel) {
+      const el = document.getElementById(elementId);
+      el.innerHTML = `<option value="">${defaultLabel}</option>`;
+      availableRoles.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r.id;
+        opt.textContent = `@${r.name}`;
+        if (r.id === selectedValue) opt.selected = true;
+        el.appendChild(opt);
+      });
+    }
+
+    function populateTextChannelSelect(selectedChannelId) {
+      const select = document.getElementById('newsChannelId');
+      select.innerHTML = '<option value="">-- Desativado --</option>';
+
+      availableTextChannels.forEach(ch => {
+        const opt = document.createElement('option');
+        opt.value = ch.id;
+        opt.textContent = `# ${ch.name}`;
+        if (ch.id === selectedChannelId) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    async function triggerHydrateRoster() {
+      if (!currentGuildId) return;
+
+      const topBtn = document.getElementById('hydrateRosterBtn');
+      const rosterBtn = document.getElementById('rosterRefreshBtn');
+
+      if (topBtn) {
+        topBtn.disabled = true;
+        topBtn.innerHTML = '<span>⏳</span> Baixando Roster...';
+      }
+      if (rosterBtn) {
+        rosterBtn.disabled = true;
+        rosterBtn.innerHTML = '<span>⏳</span> Sincronizando Roster...';
+      }
+
+      try {
+        const res = await fetch(`/api/guilds/${currentGuildId}/hydrate-roster`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`✅ Roster sincronizado! ${data.total} membros hidratados no banco.`);
+          await loadRoster(currentGuildId);
+        } else {
+          showToast(data.error || data.reason || 'Erro ao sincronizar roster.', true);
+        }
+      } catch (err) {
+        showToast('Erro de conexão ao sincronizar roster.', true);
+      } finally {
+        if (topBtn) {
+          topBtn.disabled = false;
+          topBtn.innerHTML = '<span>🔄</span> Sincronizar Roster';
+        }
+        if (rosterBtn) {
+          rosterBtn.disabled = false;
+          rosterBtn.innerHTML = '<span id="rosterRefreshIcon">🔄</span> <span id="rosterRefreshText">Sincronizar Roster Blizzard</span>';
+        }
+      }
+    }
+
+    async function triggerManualScan() {
+      if (!currentGuildId) return;
+
+      const btn = document.getElementById('manualScanBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳</span> Verificando...';
+
+      try {
+        const res = await fetch(`/api/guilds/${currentGuildId}/scan-news`, { method: 'POST' });
+        const data = await res.json();
+        if (data.scanned) {
+          showToast('⚡ Varredura do Guild News concluída com sucesso!');
+        } else {
+          showToast(data.reason || 'Guild News não executado.', true);
+        }
+      } catch (err) {
+        showToast('Erro de conexão ao executar varredura.', true);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span>⚡</span> Varredura Manual';
+      }
+    }
+
+    function populateCategorySelect(selectedCategoryId) {
+      const select = document.getElementById('panelinhaCategoryId');
+      select.innerHTML = '<option value="">-- Desativado --</option>';
+
+      availableCategories.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat.id;
+        opt.textContent = `📁 ${cat.name}`;
+        if (cat.id === selectedCategoryId) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    function populateVoiceChannelSelect(categoryId, selectedChannelId) {
+      const select = document.getElementById('panelinhaGeneratorChannelId');
+      select.innerHTML = '<option value="">-- Nenhum --</option>';
+
+      // Se tiver categoria selecionada, exibe os canais dessa categoria; senão, mostra todos os canais de voz
+      const channels = categoryId
+        ? availableVoiceChannels.filter(ch => ch.parentId === categoryId)
+        : availableVoiceChannels;
+
+      if (channels.length === 0) {
+        select.innerHTML = '<option value="">-- Nenhum canal de voz nesta categoria --</option>';
+        return;
+      }
+
+      channels.forEach(ch => {
+        const opt = document.createElement('option');
+        opt.value = ch.id;
+        opt.textContent = `🔊 ${ch.name}`;
+        if (ch.id === selectedChannelId) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    function onPanelinhaCategoryChange() {
+      const categoryId = document.getElementById('panelinhaCategoryId').value;
+      // Hot reload silencioso: atualiza os canais de voz imediatamente sem toasts
+      populateVoiceChannelSelect(categoryId, null);
+    }
+
+    function toggleAccordion(id) {
+      const content = document.getElementById(id);
+      const isClasses = id === 'classesAccordion';
+      const chevron = document.getElementById(isClasses ? 'classesChevron' : 'professionsChevron');
+
+      if (content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        chevron.classList.add('rotate-180');
+      } else {
+        content.classList.add('hidden');
+        chevron.classList.remove('rotate-180');
+      }
+    }
+
+    function renderClassTable(savedMappings) {
+      const tbody = document.getElementById('classMappingTable');
+      tbody.innerHTML = '';
+
+      const mappingMap = new Map();
+      savedMappings.forEach(m => mappingMap.set(m.className, m));
+
+      let configuredClasses = 0;
+
+      availableClasses.forEach(cls => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-800/30 transition';
+
+        const mapping = mappingMap.get(cls.key) || {};
+        if (mapping.mainRoleId || mapping.altRoleId) {
+          configuredClasses++;
+        }
+
+        // Coluna Classe com Badge
+        const tdClass = document.createElement('td');
+        tdClass.className = 'py-3.5 px-4 font-semibold flex items-center gap-2.5';
+        tdClass.innerHTML = `
+          <span class="w-3.5 h-3.5 rounded-full inline-block shadow-sm" style="background-color: ${cls.color}"></span>
+          <span>${cls.name}</span>
+        `;
+
+        // Coluna Main Role
+        const tdMain = document.createElement('td');
+        tdMain.className = 'py-3.5 px-4';
+        const selectMain = createRoleDropdown(`main_${cls.key}`, mapping.mainRoleId, '-- Nenhum (Sem Cargo) --');
+        tdMain.appendChild(selectMain);
+
+        // Coluna Alt Role
+        const tdAlt = document.createElement('td');
+        tdAlt.className = 'py-3.5 px-4';
+        const selectAlt = createRoleDropdown(`alt_${cls.key}`, mapping.altRoleId, '-- Nenhum (Sem Acesso Extra) --');
+        tdAlt.appendChild(selectAlt);
+
+        tr.appendChild(tdClass);
+        tr.appendChild(tdMain);
+        tr.appendChild(tdAlt);
+        tbody.appendChild(tr);
+      });
+
+      const badge = document.getElementById('classConfiguredBadge');
+      if (badge) {
+        badge.textContent = `${configuredClasses} de ${availableClasses.length} mapeadas`;
+        badge.className = configuredClasses > 0
+          ? 'text-xs bg-blue-950/60 text-blue-400 border border-blue-800/80 px-3 py-1 rounded-full font-medium'
+          : 'text-xs bg-slate-800 text-slate-400 border border-slate-700/80 px-3 py-1 rounded-full font-medium';
+      }
+    }
+
+    function renderProfessionGrid(savedMappings) {
+      const grid = document.getElementById('professionMappingGrid');
+      grid.innerHTML = '';
+
+      const mappingMap = new Map();
+      savedMappings.forEach(m => mappingMap.set(m.professionName, m));
+
+      let configuredProfs = 0;
+
+      availableProfessions.forEach(prof => {
+        const mapping = mappingMap.get(prof.key) || {};
+        if (mapping.roleId) {
+          configuredProfs++;
+        }
+
+        const card = document.createElement('div');
+        card.className = 'bg-slate-900/50 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3';
+
+        const labelDiv = document.createElement('div');
+        labelDiv.className = 'flex items-center gap-2.5';
+        labelDiv.innerHTML = `
+          <span class="text-xl">${prof.icon}</span>
+          <span class="font-medium text-sm text-slate-200">${prof.name}</span>
+        `;
+
+        const select = createRoleDropdown(`prof_${prof.key}`, mapping.roleId, '-- Sem Cargo Associado --');
+        select.className = 'rounded-lg px-3 py-2 text-xs md:text-sm font-medium w-full sm:w-56';
+
+        card.appendChild(labelDiv);
+        card.appendChild(select);
+        grid.appendChild(card);
+      });
+
+      const badge = document.getElementById('profConfiguredBadge');
+      if (badge) {
+        badge.textContent = `${configuredProfs} de ${availableProfessions.length} mapeadas`;
+        badge.className = configuredProfs > 0
+          ? 'text-xs bg-emerald-950/60 text-emerald-400 border border-emerald-800/80 px-3 py-1 rounded-full font-medium'
+          : 'text-xs bg-slate-800 text-slate-400 border border-slate-700/80 px-3 py-1 rounded-full font-medium';
+      }
+    }
+
+    function createRoleDropdown(name, selectedValue, defaultLabel) {
+      const select = document.createElement('select');
+      select.name = name;
+      select.className = 'w-full rounded-lg px-3 py-2 text-xs md:text-sm font-medium';
+      select.innerHTML = `<option value="">${defaultLabel}</option>`;
+
+      availableRoles.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r.id;
+        opt.textContent = `@${r.name}`;
+        if (r.id === selectedValue) opt.selected = true;
+        select.appendChild(opt);
+      });
+
+      return select;
+    }
+
+    let isSaving = false;
+    let toastTimeout = null;
+
+    function updateAccordionBadges(classMappings, profMappings) {
+      if (Array.isArray(classMappings)) {
+        const configuredClasses = classMappings.filter(m => m.mainRoleId || m.altRoleId).length;
+        const badge = document.getElementById('classConfiguredBadge');
+        if (badge) {
+          badge.textContent = `${configuredClasses} de ${availableClasses.length} mapeadas`;
+          badge.className = configuredClasses > 0
+            ? 'text-xs bg-blue-950/60 text-blue-400 border border-blue-800/80 px-3 py-1 rounded-full font-medium'
+            : 'text-xs bg-slate-800 text-slate-400 border border-slate-700/80 px-3 py-1 rounded-full font-medium';
+        }
+      }
+
+      if (Array.isArray(profMappings)) {
+        const configuredProfs = profMappings.filter(m => m.roleId).length;
+        const badge = document.getElementById('profConfiguredBadge');
+        if (badge) {
+          badge.textContent = `${configuredProfs} de ${availableProfessions.length} mapeadas`;
+          badge.className = configuredProfs > 0
+            ? 'text-xs bg-emerald-950/60 text-emerald-400 border border-emerald-800/80 px-3 py-1 rounded-full font-medium'
+            : 'text-xs bg-slate-800 text-slate-400 border border-slate-700/80 px-3 py-1 rounded-full font-medium';
+        }
+      }
+    }
+
+    async function saveConfig() {
+      if (!currentGuildId || isSaving) return;
+
+      isSaving = true;
+      const saveBtn = document.getElementById('saveBtn');
+      const saveBtnIcon = document.getElementById('saveBtnIcon');
+      const saveBtnText = document.getElementById('saveBtnText');
+
+      // Feedback visual instantâneo: bloqueia novo clique e mostra spinner
+      saveBtn.disabled = true;
+      saveBtnIcon.innerHTML = `<svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+      saveBtnText.textContent = 'Salvando configurações...';
+
+      const gameFlavor = document.getElementById('gameFlavor').value;
+      const targetGuildId = document.getElementById('targetGuildId').value;
+      const targetGuildName = document.getElementById('targetGuildName').value;
+      const targetGuildFaction = document.getElementById('targetGuildFaction').value;
+      const targetGuildRoleId = document.getElementById('targetGuildRoleId').value;
+      const guildOfficerRoleId = document.getElementById('guildOfficerRoleId').value;
+      const guildLeaderRoleId = document.getElementById('guildLeaderRoleId').value;
+      const unverifiedRoleId = document.getElementById('unverifiedRoleId').value;
+      const verifiedRoleId = document.getElementById('verifiedRoleId').value;
+      const officerRoleId = document.getElementById('officerRoleId').value;
+      const panelinhaCategoryId = document.getElementById('panelinhaCategoryId').value;
+      const panelinhaGeneratorChannelId = document.getElementById('panelinhaGeneratorChannelId').value;
+      const newsChannelId = document.getElementById('newsChannelId').value;
+      const newsIntervalMinutes = document.getElementById('newsIntervalMinutes').value;
+      const levelCap = document.getElementById('levelCap').value;
+
+      const classRoleMappings = availableClasses.map(cls => {
+        const mainEl = document.querySelector(`select[name="main_${cls.key}"]`);
+        const altEl = document.querySelector(`select[name="alt_${cls.key}"]`);
+        return {
+          className: cls.key,
+          mainRoleId: mainEl?.value || null,
+          altRoleId: altEl?.value || null
+        };
+      });
+
+      const professionRoleMappings = availableProfessions.map(prof => {
+        const profEl = document.querySelector(`select[name="prof_${prof.key}"]`);
+        return {
+          professionName: prof.key,
+          roleId: profEl?.value || null
+        };
+      });
+
+      function restoreSaveBtn() {
+        saveBtnIcon.textContent = '💾';
+        saveBtnText.textContent = 'Salvar Configurações';
+        saveBtn.classList.remove('bg-emerald-600');
+        saveBtn.classList.add('bg-blue-600', 'hover:bg-blue-500');
+        saveBtn.disabled = false;
+        isSaving = false;
+      }
+
+      try {
+        const res = await fetch(`/api/guilds/${currentGuildId}/config`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            gameFlavor,
+            targetGuildId,
+            targetGuildName,
+            targetGuildFaction,
+            targetGuildRoleId,
+            guildOfficerRoleId,
+            guildLeaderRoleId,
+            unverifiedRoleId,
+            verifiedRoleId,
+            officerRoleId,
+            panelinhaCategoryId,
+            panelinhaGeneratorChannelId,
+            newsChannelId,
+            newsIntervalMinutes,
+            levelCap: levelCap ? parseInt(levelCap, 10) : null,
+            classRoleMappings,
+            professionRoleMappings
+          })
+        });
+
+        if (res.ok) {
+          saveBtnIcon.textContent = '✅';
+          saveBtnText.textContent = 'Salvo com sucesso!';
+          saveBtn.classList.remove('bg-blue-600', 'hover:bg-blue-500');
+          saveBtn.classList.add('bg-emerald-600');
+          showToast('✅ Configurações salvas com sucesso!');
+
+          // Atualiza contadores dos acordeões em tempo real
+          updateAccordionBadges(classRoleMappings, professionRoleMappings);
+
+          setTimeout(restoreSaveBtn, 1200);
+        } else {
+          showToast('❌ Falha ao salvar configurações.', true);
+          restoreSaveBtn();
+        }
+      } catch (err) {
+        showToast('❌ Erro de conexão ao salvar.', true);
+        restoreSaveBtn();
+      }
+    }
+
+    function showToast(message, isError = false) {
+      const toast = document.getElementById('toast');
+      if (toastTimeout) clearTimeout(toastTimeout);
+
+      toast.textContent = message;
+      toast.className = `fixed bottom-6 right-6 px-6 py-3.5 rounded-xl shadow-2xl font-semibold text-sm transform transition-all duration-300 z-50 ${
+        isError ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'
+      } opacity-100 translate-y-0`;
+
+      toastTimeout = setTimeout(() => {
+        toast.className = 'fixed bottom-6 right-6 px-6 py-3.5 rounded-xl shadow-2xl font-semibold text-sm transform transition-all duration-300 z-50 opacity-0 pointer-events-none translate-y-4';
+      }, 3000);
+    }
+
+    // ==========================================
+    // Roster da Guilda (Visualização & Filtros)
+    // ==========================================
+    let fullRosterList = [];
+    let currentRosterFilter = 'all'; // 'all', 'linked', 'unlinked'
+
+    const CLASS_COLORS = {
+      'Warrior': '#C69B6D',
+      'Paladin': '#F48CBA',
+      'Hunter': '#A9D271',
+      'Rogue': '#FFF468',
+      'Priest': '#FFFFFF',
+      'Death Knight': '#C41E3A',
+      'Shaman': '#0070DE',
+      'Mage': '#3FC7EB',
+      'Warlock': '#8788EE',
+      'Monk': '#00FF98',
+      'Druid': '#FF7D0A',
+      'Demon Hunter': '#A330C9',
+      'Evoker': '#33937F'
+    };
+
+    async function loadRoster(guildId) {
+      if (!guildId) return;
+
+      const tbody = document.getElementById('rosterTableBody');
+      const badge = document.getElementById('rosterGuildBadge');
+
+      try {
+        const res = await fetch(`/api/guilds/${guildId}/roster`);
+        const data = await res.json();
+
+        fullRosterList = data.characters || [];
+
+        // Atualiza contadores
+        document.getElementById('statTotalMembers').textContent = data.stats?.total || 0;
+        document.getElementById('statLinkedMembers').textContent = data.stats?.linked || 0;
+        document.getElementById('statUnlinkedMembers').textContent = data.stats?.unlinked || 0;
+
+        if (data.guildName) {
+          const sampleRealm = fullRosterList[0]?.realm ? ` • Reino: ${fullRosterList[0].realm}` : '';
+          badge.textContent = `<${data.guildName}> (${data.gameFlavor || 'forever'}${sampleRealm})`;
+          badge.classList.remove('hidden');
+        } else {
+          badge.classList.add('hidden');
+        }
+
+        // Popula filtro de classes
+        populateRosterClassFilter(fullRosterList);
+
+        // Renderiza tabela filtrada
+        filterRosterTable();
+      } catch (err) {
+        console.error('Erro ao carregar roster:', err);
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5" class="py-8 text-center text-red-400">
+              Erro ao carregar elenco da guilda. Verifique se o servidor está ativo.
+            </td>
+          </tr>
+        `;
+      }
+    }
+
+    function populateRosterClassFilter(characters) {
+      const select = document.getElementById('rosterClassFilter');
+      const currentSelected = select.value;
+      const classes = [...new Set(characters.map(c => c.playableClass).filter(Boolean))].sort();
+
+      select.innerHTML = '<option value="">Todas as Classes</option>';
+      classes.forEach(cls => {
+        const opt = document.createElement('option');
+        opt.value = cls;
+        opt.textContent = cls;
+        if (cls === currentSelected) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    function setRosterFilter(filter) {
+      currentRosterFilter = filter;
+
+      const tabs = ['all', 'linked', 'unlinked'];
+      tabs.forEach(t => {
+        const btn = document.getElementById(`rosterTab-${t}`);
+        if (t === filter) {
+          btn.className = 'text-xs font-semibold px-3 py-1.5 rounded-lg bg-purple-600 text-white transition';
+        } else {
+          btn.className = 'text-xs font-semibold px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition';
+        }
+      });
+
+      filterRosterTable();
+    }
+
+    function filterRosterTable() {
+      const search = (document.getElementById('rosterSearchInput').value || '').toLowerCase().trim();
+      const classFilter = document.getElementById('rosterClassFilter').value;
+      const tbody = document.getElementById('rosterTableBody');
+      const showingCountEl = document.getElementById('rosterShowingCount');
+
+      let filtered = fullRosterList.filter(char => {
+        // Filtro de aba (status de vínculo)
+        if (currentRosterFilter === 'linked' && !char.discordId) return false;
+        if (currentRosterFilter === 'unlinked' && char.discordId) return false;
+
+        // Filtro de classe
+        if (classFilter && char.playableClass !== classFilter) return false;
+
+        // Filtro de busca textual
+        if (search) {
+          const name = (char.name || '').toLowerCase();
+          const surname = (char.surname || '').toLowerCase();
+          const fullName = `${name} ${surname}`.trim();
+          const cls = (char.playableClass || '').toLowerCase();
+          const btag = (char.battleTag || '').toLowerCase();
+          const dName = (char.discordMember?.displayName || '').toLowerCase();
+          const uName = (char.discordMember?.username || '').toLowerCase();
+
+          const matches = name.includes(search) ||
+            surname.includes(search) ||
+            fullName.includes(search) ||
+            cls.includes(search) ||
+            btag.includes(search) ||
+            dName.includes(search) ||
+            uName.includes(search);
+
+          if (!matches) return false;
+        }
+
+        return true;
+      });
+
+      showingCountEl.textContent = `Exibindo ${filtered.length} de ${fullRosterList.length} membros`;
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5" class="py-10 text-center text-slate-400">
+              <div class="flex flex-col items-center gap-1.5">
+                <span class="text-2xl">🔍</span>
+                <span class="font-medium text-slate-300">Nenhum membro encontrado com os filtros selecionados</span>
+                <span class="text-xs text-slate-500">Tente buscar por outro termo ou limpar os filtros</span>
+              </div>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(char => {
+        const color = CLASS_COLORS[char.playableClass] || '#A3B8CC';
+        const fullName = char.surname ? `${char.name} ${char.surname}` : char.name;
+        const race = char.playableRace || '';
+
+        // Badge de Rank
+        let rankBadge = '<span class="text-slate-500 text-xs">-</span>';
+        if (char.guildRank === 0) {
+          rankBadge = '<span class="bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[11px] font-bold px-2 py-0.5 rounded inline-flex items-center gap-1">👑 Guild Master</span>';
+        } else if (char.guildRank === 1) {
+          rankBadge = '<span class="bg-purple-500/15 text-purple-300 border border-purple-500/30 text-[11px] font-semibold px-2 py-0.5 rounded inline-flex items-center gap-1">⚔️ Oficial</span>';
+        } else if (char.guildRank === 2) {
+          rankBadge = '<span class="bg-slate-800 text-slate-300 border border-slate-700/60 text-[11px] px-2 py-0.5 rounded">Membro</span>';
+        } else if (char.guildRank !== null && char.guildRank !== undefined) {
+          rankBadge = `<span class="bg-slate-800 text-slate-400 border border-slate-700/60 text-[11px] px-2 py-0.5 rounded">Rank ${char.guildRank}</span>`;
+        }
+
+        // Profissões
+        let profsHtml = '<span class="text-slate-600 text-xs italic">Nenhuma</span>';
+        if (char.professions && char.professions.length > 0) {
+          profsHtml = `
+            <div class="flex flex-wrap gap-1">
+              ${char.professions.map(p => {
+                const pts = (p.skillPoints && p.maxSkill) ? ` <span class="text-slate-400 font-mono text-[10px]">(${p.skillPoints}/${p.maxSkill})</span>` : '';
+                return `<span class="bg-slate-800/90 border border-slate-700/70 text-slate-300 text-[11px] px-2 py-0.5 rounded font-medium">${p.name}${pts}</span>`;
+              }).join('')}
+            </div>
+          `;
+        }
+
+        // Vínculo Discord / Dono
+        let ownerHtml = '';
+        if (char.discordId) {
+          const avatar = char.discordMember?.avatarUrl
+            ? `<img src="${char.discordMember.avatarUrl}" class="w-8 h-8 rounded-full border border-purple-500/40 shrink-0" alt="Avatar" />`
+            : `<div class="w-8 h-8 rounded-full bg-purple-600/30 border border-purple-500/40 flex items-center justify-center text-xs font-bold text-purple-200 shrink-0">🎮</div>`;
+
+          const displayName = char.discordMember?.displayName || char.discordMember?.username || `@${char.discordId}`;
+          const btag = char.battleTag ? `<span class="text-[11px] text-slate-400 font-mono">${char.battleTag}</span>` : '';
+          const roleTag = char.isMain
+            ? `<span class="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold px-1.5 py-0.2 rounded shrink-0">⭐ MAIN</span>`
+            : `<span class="bg-slate-800 text-slate-400 text-[10px] px-1.5 py-0.2 rounded shrink-0">Alt</span>`;
+
+          ownerHtml = `
+            <div class="flex items-center gap-2.5">
+              ${avatar}
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="font-semibold text-white text-xs">${displayName}</span>
+                  ${roleTag}
+                </div>
+                ${btag ? `<div>${btag}</div>` : ''}
+              </div>
+            </div>
+          `;
+        } else {
+          ownerHtml = `
+            <span class="inline-flex items-center gap-1 text-[11px] bg-slate-900/90 text-slate-400 border border-slate-800 px-2.5 py-1 rounded-lg">
+              <span>⏳</span> Aguardando Vínculo
+            </span>
+          `;
+        }
+
+        return `
+          <tr class="hover:bg-slate-900/40 transition">
+            <td class="py-3 px-4">
+              <div class="flex flex-col">
+                <span class="font-bold text-sm tracking-wide" style="color: ${color};">${fullName}</span>
+                <div class="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
+                  <span class="font-semibold" style="color: ${color};">${char.playableClass || 'Classe'}</span>
+                  ${race ? `<span>• ${race}</span>` : ''}
+                </div>
+              </div>
+            </td>
+            <td class="py-3 px-3">
+              <span class="font-bold text-xs bg-slate-800 text-slate-200 border border-slate-700/60 px-2.5 py-1 rounded-md font-mono">
+                ${char.level || 1}
+              </span>
+            </td>
+            <td class="py-3 px-3">
+              ${rankBadge}
+            </td>
+            <td class="py-3 px-4">
+              ${profsHtml}
+            </td>
+            <td class="py-3 px-4">
+              ${ownerHtml}
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    init();
+  </script>
+</body>
+</html>

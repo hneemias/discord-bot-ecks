@@ -1,0 +1,24 @@
+{
+  "name": "bot-guild-projeto",
+  "version": "1.0.0",
+  "description": "Discord Bot integrado ao WoW Forever e Battle.net",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node src/index.js",
+    "deploy:commands": "node src/bot/deploy-commands.js",
+    "db:push": "npx prisma db push",
+    "db:generate": "npx prisma generate"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.4.1",
+    "axios": "^1.21.1",
+    "discord.js": "^14.28.1",
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0"
+  },
+  "devDependencies": {
+    "prisma": "^6.4.1"
+  }
+}
